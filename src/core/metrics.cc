@@ -25,6 +25,8 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/range/algorithm_ext/erase.hpp>
+#include <cassert>
+#include <iostream>
 
 namespace seastar {
 namespace metrics {
@@ -328,10 +330,14 @@ void impl::add_registration(const metric_id& id, data_type type, metric_function
             for (auto i : id.labels()) {
                 labels += "," + i.first + "=" + i.second;
             }
-            throw std::runtime_error("registering metrics twice for metrics: " + name + labels);
+            //throw std::runtime_error("registering metrics twice for metrics: " + name + labels);
+            std::cout << "registering metrics twice for metrics: " + name + labels;
+            std::cout.flush();
+            //std::string s = "registering metrics twice for metrics" + name + labels;
+            assert(false && printf("registering metrics twice for metrics %s %s\n",  name.c_str(),  labels.c_str()));
         }
         if (metric.info().type != type) {
-            throw std::runtime_error("registering metrics " + name + " registered with different type.");
+           throw std::runtime_error("registering metrics " + name + " registered with different type.");
         }
         metric[id.labels()] = rm;
     } else {
