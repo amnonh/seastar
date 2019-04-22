@@ -182,6 +182,7 @@ public:
     virtual server_socket listen(socket_address sa, listen_options opts) override;
     virtual ::seastar::socket socket() override;
     virtual net::udp_channel make_udp_channel(const socket_address&) override;
+    virtual std::vector<interface_description> get_interfaces() const override;
     static future<std::unique_ptr<network_stack>> create(boost::program_options::variables_map opts) {
         return make_ready_future<std::unique_ptr<network_stack>>(std::unique_ptr<network_stack>(new posix_network_stack(opts)));
     }

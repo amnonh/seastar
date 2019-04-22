@@ -26,6 +26,7 @@
 #include <seastar/net/api.hh>
 #include <netinet/tcp.h>
 #include <netinet/sctp.h>
+#include <ifaddrs.h>
 
 namespace seastar {
 
@@ -379,7 +380,27 @@ posix_network_stack::listen(socket_address sa, listen_options opt) {
 ::seastar::socket posix_network_stack::socket() {
     return ::seastar::socket(std::make_unique<posix_socket_impl>());
 }
+std::vector<interface_description> posix_network_stack::get_interfaces() const {
+    std::vector<interface_description> res;
+    struct ifaddrs *ifaddr, *ifa;
+    if (getifaddrs(&ifaddr) == -1) {
+        throw std::runtime_error("Failed getting interface information");
+    }
 
+    for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
+        if (ifa->ifa_addr == NULL) {
+            continue;
+        }
+        if (ifa->ifa_addr->sa_family == AF_INET) {
+            struct sockaddr_in* sa = reinterpret_cast<sockaddr_in*>(ifa->ifa_addr);
+            struct sockaddr_in* sm = reinterpret_cast<sockaddr_in*>(ifa->ifa_netmask);
+
+            res.push_back({{sa->sin_addr, 0},{sm->sin_addr, 0},sstring(ifa->ifa_name)});
+        }
+    }
+    freeifaddrs(ifaddr);
+    return res;
+}
 template<transport Transport>
 thread_local std::unordered_map<socket_address, promise<connected_socket, socket_address>> posix_ap_server_socket_impl<Transport>::sockets;
 template<transport Transport>
@@ -568,6 +589,7 @@ void register_posix_stack() {
         },
         true);
 }
+
 }
 
 }

@@ -153,6 +153,14 @@ public:
     virtual ::seastar::socket socket() override;
     virtual udp_channel make_udp_channel(const socket_address& addr) override;
     virtual future<> initialize() override;
+    virtual std::vector<interface_description> get_interfaces() const override {
+        // with the native stack we have only one interface and it has no name
+        // We will fake the result by returning an interface called native
+        // with the ip and mask
+        std::vector<interface_description> res;
+        res.push_back({{_inet.host_address().ip, 0},{_inet.netmask_address().ip, 0},sstring("native")});
+        return res;
+    }
     static future<std::unique_ptr<network_stack>> create(boost::program_options::variables_map opts) {
         if (engine().cpu_id() == 0) {
             create_native_net_device(opts);

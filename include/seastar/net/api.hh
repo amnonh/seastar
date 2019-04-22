@@ -283,6 +283,20 @@ struct listen_options {
     transport proto = transport::TCP;
 };
 
+/*!
+ * \brief an interface description
+ *
+ * Contains the interface name,
+ * ip address
+ * and the interface mask
+ *
+ */
+struct interface_description {
+    ::seastar::ipv4_addr host_address;
+    ::seastar::ipv4_addr netmask;
+    sstring name;
+};
+
 class network_stack {
 public:
     virtual ~network_stack() {}
@@ -295,6 +309,11 @@ public:
         return make_ready_future();
     }
     virtual bool has_per_core_namespace() = 0;
+    /*!
+     * \brief returns a vector of interfaces description
+     *
+     */
+    virtual std::vector<interface_description> get_interfaces() const = 0;
     // NOTE: this is not a correct query approach.
     // This question should be per NIC, but we have no such
     // abstraction, so for now this is "stack-wide"
