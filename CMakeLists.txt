@@ -402,6 +402,28 @@ find_package (Valgrind REQUIRED)
 # Code generation helpers.
 #
 
+function (seastar_generate_protobuf)
+  set (one_value_args TARGET VAR IN_FILE OUT_DIR)
+  cmake_parse_arguments (args "" "${one_value_args}" "" ${ARGN})
+  get_filename_component (in_file_name ${args_IN_FILE} NAME_WE)
+  get_filename_component (in_file_dir ${args_IN_FILE} DIRECTORY)
+  set (header_out ${args_OUT_DIR}/${in_file_name}.pb.h)
+  set (source_out ${args_OUT_DIR}/${in_file_name}.pb.cc)
+
+  add_custom_command (
+    DEPENDS ${args_IN_FILE}
+    OUTPUT ${header_out} ${source_out}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${args_OUT_DIR}
+    COMMAND ${Protobuf_PROTOC_EXECUTABLE} --cpp_out=${args_OUT_DIR} -I${in_file_dir} ${args_IN_FILE})
+
+  add_custom_target (${args_TARGET}
+    DEPENDS
+      ${header_out}
+      ${source_out})
+
+  set (${args_VAR} ${header_out} ${source_out} PARENT_SCOPE)
+endfunction ()
+
 function (seastar_generate_ragel)
   set (one_value_args TARGET VAR IN_FILE OUT_FILE)
   cmake_parse_arguments (args "" "${one_value_args}" "" ${ARGN})
@@ -466,6 +488,12 @@ seastar_generate_ragel (
   IN_FILE ${CMAKE_CURRENT_SOURCE_DIR}/src/http/response_parser.rl
   OUT_FILE ${Seastar_GEN_BINARY_DIR}/include/seastar/http/response_parser.hh)
 
+seastar_generate_protobuf (
+  TARGET seastar_proto_metrics2
+  VAR proto_metrics2_files
+  IN_FILE ${CMAKE_CURRENT_SOURCE_DIR}/src/proto/metrics2.proto
+  OUT_DIR ${Seastar_GEN_BINARY_DIR}/src/proto)
+
 if (Seastar_DPDK)
   set (seastar_dpdk_obj seastar-dpdk.o)
 endif ()
@@ -473,6 +501,7 @@ endif ()
 add_library (seastar
   ${http_chunk_parsers_file}
   ${http_request_parser_file}
+  ${proto_metrics2_files}
   ${seastar_dpdk_obj}
   include/seastar/core/abort_source.hh
   include/seastar/core/alien.hh
@@ -746,7 +775,8 @@ add_library (Seastar::seastar ALIAS seastar)
 add_dependencies (seastar
   seastar_http_chunk_parsers
   seastar_http_request_parser
-  seastar_http_response_parser)
+  seastar_http_response_parser
+  seastar_proto_metrics2)
 
 target_include_directories (seastar
   PUBLIC
@@ -787,6 +817,7 @@ target_link_libraries (seastar
     GnuTLS::gnutls
     StdAtomic::atomic
     lksctp-tools::lksctp-tools
+    protobuf::libprotobuf
     rt::rt
     yaml-cpp::yaml-cpp
     "$<BUILD_INTERFACE:Valgrind::valgrind>"
@@ -1294,6 +1325,7 @@ if (Seastar_INSTALL)
     FILES
       ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindGnuTLS.cmake
       ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindLinuxMembarrier.cmake
+      ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindProtobuf.cmake
       ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindSanitizers.cmake
       ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindSourceLocation.cmake
       ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindStdAtomic.cmake
