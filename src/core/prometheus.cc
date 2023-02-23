@@ -798,21 +798,21 @@ class metrics_handler : public handler_base  {
 public:
     metrics_handler(config ctx) : _ctx(ctx) {}
 
-    future<std::unique_ptr<httpd::reply>> handle(const sstring& path,
-        std::unique_ptr<httpd::request> req, std::unique_ptr<httpd::reply> rep) override {
+    future<std::unique_ptr<http::reply>> handle(const sstring& path,
+        std::unique_ptr<http::request> req, std::unique_ptr<http::reply> rep) override {
         auto text = is_accept_text(req->get_header("Accept"));
         sstring metric_family_name = req->get_query_param("__name__");
         bool prefix = trim_asterisk(metric_family_name);
         bool show_help = req->get_query_param("__help__") != "false";
         std::function<bool(const mi::labels_type&)> filter = make_filter(*req);
 
-        rep->write_body((text) ? "txt" : "proto", [this, text, metric_family_name, prefix] (output_stream<char>&& s) {
+        rep->write_body((text) ? "txt" : "proto", [this, text, metric_family_name, prefix, show_help, filter] (output_stream<char>&& s) {
             return do_with(metrics_families_per_shard(), output_stream<char>(std::move(s)),
-                    [this, text, prefix, &metric_family_name] (metrics_families_per_shard& families, output_stream<char>& s) mutable {
-                return get_map_value(families).then([&s, &families, this, text, prefix, &metric_family_name]() mutable {
+                    [this, text, prefix, &metric_family_name, show_help, filter] (metrics_families_per_shard& families, output_stream<char>& s) mutable {
+                return get_map_value(families).then([&s, &families, this, text, prefix, &metric_family_name, show_help, filter]() mutable {
                     return do_with(get_range(families, metric_family_name, prefix),
-                            [&s, this, text](metric_family_range& m) {
-                        return (text) ? write_text_representation(s, _ctx, m) :
+                            [&s, this, text, show_help, filter](metric_family_range& m) {
+                        return (text) ? write_text_representation(s, _ctx, m, show_help, filter) :
                                 write_protobuf_representation(s, _ctx, m);
                     });
                 }).finally([&s] () mutable {
