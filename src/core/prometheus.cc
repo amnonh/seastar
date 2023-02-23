@@ -96,6 +96,8 @@ static void fill_metric(pm::MetricFamily& mf, const metrics::impl::metric_value&
         add_label(mf.add_metric(), id, ctx)->mutable_gauge()->set_value(c.d());
         mf.set_type(pm::MetricType::GAUGE);
         break;
+    case scollectd::data_type::SUMMARY:
+        [[fallthrough]];
     case scollectd::data_type::HISTOGRAM:
     {
         auto h = c.get_histogram();
@@ -110,6 +112,8 @@ static void fill_metric(pm::MetricFamily& mf, const metrics::impl::metric_value&
         mf.set_type(pm::MetricType::HISTOGRAM);
         break;
     }
+    case scollectd::data_type::REAL_COUNTER:
+        [[fallthrough]];
     case scollectd::data_type::COUNTER:
         add_label(mf.add_metric(), id, ctx)->mutable_counter()->set_value(c.ui());
         mf.set_type(pm::MetricType::COUNTER);
