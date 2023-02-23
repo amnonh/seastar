@@ -92,10 +92,6 @@ static pm::Metric* add_label(pm::Metric* mt, const metrics::impl::metric_id & id
 static void fill_metric(pm::MetricFamily& mf, const metrics::impl::metric_value& c,
         const metrics::impl::metric_id & id, const config& ctx) {
     switch (c.type()) {
-    case scollectd::data_type::DERIVE:
-        add_label(mf.add_metric(), id, ctx)->mutable_counter()->set_value(c.i());
-        mf.set_type(pm::MetricType::COUNTER);
-        break;
     case scollectd::data_type::GAUGE:
         add_label(mf.add_metric(), id, ctx)->mutable_gauge()->set_value(c.d());
         mf.set_type(pm::MetricType::GAUGE);
@@ -115,7 +111,6 @@ static void fill_metric(pm::MetricFamily& mf, const metrics::impl::metric_value&
         break;
     }
     case scollectd::data_type::COUNTER:
-    case scollectd::data_type::ABSOLUTE:
         add_label(mf.add_metric(), id, ctx)->mutable_counter()->set_value(c.ui());
         mf.set_type(pm::MetricType::COUNTER);
         break;
