@@ -31,6 +31,7 @@
 #include <boost/range/combine.hpp>
 #include <seastar/core/thread.hh>
 #include <seastar/core/loop.hh>
+#include <seastar/coroutine/maybe_yield.hh>
 #include <regex>
 
 namespace seastar {
@@ -261,7 +262,7 @@ public:
         return *_family_info;
     }
 
-    void foreach_metric(std::function<void(const mi::metric_value&, const mi::metric_info&)>&& f);
+    future<> foreach_metric(std::function<future<>(const mi::metric_value&, const mi::metric_info&)>&& f);
 
     bool end() const {
         return !_name || !_family_info;
@@ -378,7 +379,7 @@ public:
         return _positions.empty() || _info.end();
     }
 
-    void foreach_metric(std::function<void(const mi::metric_value&, const mi::metric_info&)>&& f) {
+    future<> foreach_metric(std::function<future<>(const mi::metric_value&, const mi::metric_info&)>&& f) {
         // iterating over the shard vector and the position vector
         for (auto&& i : boost::combine(_positions, _families)) {
             auto& pos_in_metric_per_shard = boost::get<0>(i);
@@ -396,16 +397,17 @@ public:
                 for (auto&& vm : boost::combine(values, metrics_metadata)) {
                     auto& value = boost::get<0>(vm);
                     auto& metric_metadata = boost::get<1>(vm);
-                    f(value, metric_metadata);
+                    co_await f(value, metric_metadata);
                 }
             }
         }
+        co_return;
     }
 
 };
 
-void metric_family::foreach_metric(std::function<void(const mi::metric_value&, const mi::metric_info&)>&& f) {
-    _iterator_state.foreach_metric(std::move(f));
+future<> metric_family::foreach_metric(std::function<future<>(const mi::metric_value&, const mi::metric_info&)>&& f) {
+    return _iterator_state.foreach_metric(std::move(f));
 }
 
 class metric_family_range {
@@ -588,11 +590,11 @@ future<> write_text_representation(output_stream<char>& out, const config& ctx, 
             found = false;
             metric_aggregate_by_labels aggregated_values(metric_family.metadata().aggregate_labels);
             bool should_aggregate = !metric_family.metadata().aggregate_labels.empty();
-            metric_family.foreach_metric([&s, &out, &ctx, &found, &name, &metric_family, &aggregated_values, should_aggregate, show_help, &filter](const mi::metric_value& value, const mi::metric_info& value_info) mutable {
+            metric_family.foreach_metric([&s, &out, &ctx, &found, &name, &metric_family, &aggregated_values, should_aggregate, show_help, &filter](const mi::metric_value& value, const mi::metric_info& value_info) mutable -> future<> {
                 s.clear();
                 s.str("");
                 if ((value_info.should_skip_when_empty && value.is_empty()) || !filter(value_info.id.labels())) {
-                    return;
+                    co_return;
                 }
                 if (!found) {
                     if (show_help && metric_family.metadata().d.str() != "") {
@@ -611,9 +613,9 @@ future<> write_text_representation(output_stream<char>& out, const config& ctx, 
                     add_name(s, name, value_info.id.labels(), ctx);
                     s << get_value_as_string(s, value) << '\n';
                 }
-                out.write(s.str()).get();
-                thread::maybe_yield();
-            });
+                co_await out.write(s.str());
+                co_await coroutine::maybe_yield();
+            }).get();
             if (!aggregated_values.empty()) {
                 for (auto&& h : aggregated_values.get_values()) {
                     s.clear();
